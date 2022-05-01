@@ -1,0 +1,108 @@
+name: Mayhem
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+
+env:
+  REGISTRY: ghcr.io
+  IMAGE_NAME: ${{ github.repository }}
+  CLIENT_MAYHEMFILE: Mayhem/client.mayhemfile
+  DEFRAMER_MAYHEMFILE: Mayhem/deframer.mayhemfile
+  FRAGMENT_MAYHEMFILE: Mayhem/fragment.mayhemfile
+  HSJOINER_MAYHEMFILE: Mayhem/hsjoiner.mayhemfile
+  MESSAGE_MAYHEMFILE: Mayhem/message.mayhemfile
+  PERSIST_MAYHEMFILE: Mayhem/persist.mayhemfile
+  SERVER_MAYHEMFILE: Mayhem/server.mayhemfile
+
+jobs:
+  build:
+    name: '${{ matrix.os }} shared=${{ matrix.shared }} ${{ matrix.build_type }}'
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        os: [ubuntu-latest]
+        shared: [false]
+        build_type: [Release]
+        include:
+          - os: ubuntu-latest
+            triplet: x64-linux
+
+    steps:
+      - uses: actions/checkout@v2
+
+      - name: Log in to the Container registry
+        uses: docker/login-action@f054a8b539a109f9f41c372932f1ae047eff08c9
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Extract metadata (tags, labels) for Docker
+        id: meta
+        uses: docker/metadata-action@98669ae865ea3cffbcbaa878cf57c20bbf1c6c38
+        with:
+          images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
+
+      - name: Build and push Docker image
+        uses: docker/build-push-action@ad44023a93711e3deb337508980b4b5e9bcdc5dc
+        with:
+          context: .
+          push: true
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+
+      - name: Start analysis for client
+        uses: ForAllSecure/mcode-action@v1
+        with:
+          mayhem-token: ${{ secrets.MAYHEM_TOKEN }}
+          args: --image ${{ steps.meta.outputs.tags }} --file ${{ env.CLIENT_MAYHEMFILE }}
+          sarif-output: sarif
+
+      - name: Start analysis for deframer
+        uses: ForAllSecure/mcode-action@v1
+        with:
+          mayhem-token: ${{ secrets.MAYHEM_TOKEN }}
+          args: --image ${{ steps.meta.outputs.tags }} --file ${{ env.DEFRAMER_MAYHEMFILE }}
+          sarif-output: sarif
+
+      - name: Start analysis for fragment
+        uses: ForAllSecure/mcode-action@v1
+        with:
+          mayhem-token: ${{ secrets.MAYHEM_TOKEN }}
+          args: --image ${{ steps.meta.outputs.tags }} --file ${{ env.FRAGMENT_MAYHEMFILE }}
+          sarif-output: sarif
+
+      - name: Start analysis for hsjoiner
+        uses: ForAllSecure/mcode-action@v1
+        with:
+          mayhem-token: ${{ secrets.MAYHEM_TOKEN }}
+          args: --image ${{ steps.meta.outputs.tags }} --file ${{ env.HSJOINER_MAYHEMFILE }}
+          sarif-output: sarif
+
+      - name: Start analysis for message
+        uses: ForAllSecure/mcode-action@v1
+        with:
+          mayhem-token: ${{ secrets.MAYHEM_TOKEN }}
+          args: --image ${{ steps.meta.outputs.tags }} --file ${{ env.MESSAGE_MAYHEMFILE }}
+          sarif-output: sarif
+
+      - name: Start analysis for persist
+        uses: ForAllSecure/mcode-action@v1
+        with:
+          mayhem-token: ${{ secrets.MAYHEM_TOKEN }}
+          args: --image ${{ steps.meta.outputs.tags }} --file ${{ env.PERSIST_MAYHEMFILE }}
+          sarif-output: sarif
+
+      - name: Start analysis for server
+        uses: ForAllSecure/mcode-action@v1
+        with:
+          mayhem-token: ${{ secrets.MAYHEM_TOKEN }}
+          args: --image ${{ steps.meta.outputs.tags }} --file ${{ env.SERVER_MAYHEMFILE }}
+          sarif-output: sarif
+
+
+      - name: Upload SARIF file(s)
+        uses: github/codeql-action/upload-sarif@v1
+        with:
+          sarif_file: sarif
